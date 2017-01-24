@@ -54,13 +54,13 @@ var createMap = function() {
   var x = 0;
   $.each(Object.keys(districtIndex).sort(), function(i, name) {
     matrix = matrix.concat(x, x+1, x+2);
-    
+
     districtIndex[name] = {
       name: name,
       relationships: {
         'give':{},
         'get': {},
-        'mutual': {}        
+        'mutual': {}
       },
       counts: {}
     };
@@ -103,7 +103,7 @@ var createMap = function() {
       } else {
         district.relationships[type][district2.name].push(value);
       }
-      
+
     };
 
 
@@ -122,7 +122,7 @@ var createMap = function() {
   $.each(rows, function(rowIndex, row) {
     var gets = getGets(row);
 
-    if (row.give && districtIndex[row.give] !== undefined) {
+    if (row.give && districtIndex[row.give] !== 'Cal. Ed. Partners') {
       var from = districtIndex[row.give].give;
       districtIndex[row.give].counts.give.count++;
       districtIndex[row.give].counts.give.participants += gets.length;
@@ -196,7 +196,7 @@ var hideTooltip = function() {
 
 var showInfo = function(title, relationships, type, isChord) {
   $('#info .panel-title').html(title);
-  
+
   $('#info .list-group').html('');
   $.each(relationships, function(index, r){
     showRow(r.id, r.type);
@@ -216,7 +216,7 @@ var showRow = function(rowIndex, type) {
   if (row.give === 'Expert') {
     subtitle += ' (Expert)';
   }
-  if (districtIndex[row.give] === undefined) {
+  if (districtIndex[row.give] === 'Cal. Ed. Partners') {
     subtitle += ' (Mutual)';
   }
   var details = '';
@@ -235,7 +235,7 @@ var showRow = function(rowIndex, type) {
 };
 
 var drawGraph = function() {
-  
+
   var getDistrict = function(d) {
     return districtIndex[districts[d.index].name];
   };
@@ -306,7 +306,7 @@ var drawGraph = function() {
     .data(chord.chords)
     .enter().append('path')
     .attr('class', 'chord')
-    .style('fill', function(d) { 
+    .style('fill', function(d) {
       var district = districts[d.source.index];
       if (district.type === 'get') {
         return fill(d.target);
@@ -328,7 +328,7 @@ var drawGraph = function() {
       var title = '';
       if (type === 'mutual') {
         title = 'Mutual between '+ sourceDistrict.name + ' and '+ targetDistrict.name;
-      } else {  
+      } else {
         title = sourceDistrict.name + ' to '+ targetDistrict.name;
       }
       showInfo(title, sourceDistrict.relationships[type][targetDistrict.name], type, true);
@@ -375,7 +375,7 @@ var drawGraph = function() {
     .attr('fill', function(d) {
       return d3.rgb(fill(d)).darker(3);
     });
-   
+
   //Adding district names to arcs
   svg.append('g')
     .attr('class', 'labels')
@@ -387,7 +387,7 @@ var drawGraph = function() {
     )
     .enter().append('text')
     .attr('class', 'district-label')
-    .each(function(d) { 
+    .each(function(d) {
       d.center = (d.startAngle + endAngle(d.index+2)) / 2;
     })
     .attr('dy', '.35em')
@@ -417,7 +417,7 @@ var drawGraph = function() {
       });
       showInfo(district.name, rowIndexes, districts[d.index].type);
     });
- 
+
   //Now apply all the properties that depend on scale
   resize();
 };
@@ -430,7 +430,7 @@ var resize = function() {
   $('#viz-container svg').attr('width', graphSize)
     .attr('height', graphSize);
   svg.attr('transform', 'translate(' + graphSize / 2 + ',' + graphSize / 2 + ')');
-  
+
   var outerOuterRadius = graphSize * 0.5 - labelSize - 10;
   var outerInnerRadius = outerOuterRadius * 0.99;
   var innerOuterRadius = outerInnerRadius * 0.98;
@@ -451,7 +451,7 @@ var resize = function() {
 
   svg.selectAll('.chord')
     .attr('d', d3.svg.chord().radius(innerInnerRadius));
-  
+
   svg.selectAll('.sublabel')
     .attr('font-size', iconsize + 'px')
     .attr('transform', function(d) {
@@ -460,10 +460,10 @@ var resize = function() {
     })
     .text(function(d) {
       if ((d.endAngle - d.startAngle) * innerInnerRadius > iconsize) {
-        return districts[d.index].type === 'give' ? '' : districts[d.index].type === 'get' ? '' : ''; 
+        return districts[d.index].type === 'give' ? '' : districts[d.index].type === 'get' ? '' : '';
       }
     });
-  
+
   svg.selectAll('.district-label')
     .attr('transform', function(d) {
       return 'rotate(' + (d.center * 180 / Math.PI - 90) + ')' +
@@ -500,36 +500,97 @@ $(function() {
   var tabletop;
   var fetchData = function() {
     tabletop = Tabletop.init( {
-      key: '1XkV1ePpq5piIfonZWShm7SZd78lqKvvgSP_u2hl54ic',
+      key: '187AL-Ve6sOLP_-j58xk8ANHi1cZfheDzDSMInC4snOg',
       callback: function(data) {
         if (rows[0]) { return; }
+
+        var sheetNames = Object.keys(data);
+        $.each(sheetNames, function(i, sheetName) {
+            $('.worksheets')
+                .append('<option>' + sheetName + '</option>');
+        });
+
+        // TODO refactor to grab it each time
+        // TODO refactor to redraw each time
+        var currSheet = $('.worksheets').find(':selected').text();
+        // console.log("currSheet", currSheet);
         initGraph();
-        $.each(data, function(i, row) {
-          row._origGive = row.give;
+        // console.log("data['CALLI - 4-6 Language Development']", data['CALLI - 4-6 Language Development']);
+        var gets = {};
+        var rowsObject = {};
+        // TODO make this generalizable
+        $.each(data['CALLI - 4-6 Language Development'].elements, function(i, row) {
+            // If this operation iterates over an event for the first time:
+            if (!rowsObject[row.surveyname]) {
+                rowsObject[row.surveyname] = {};
+                // create container for tracking "gets"
+                gets[row.surveyname] = {};
+                rowsObject[row.surveyname].specificwhat = row.surveyname;
+                rowsObject[row.surveyname].when = row.date;
+                // host into row.give and row._origGive
+                if (row.hostattendmutual === 'Hosted') {
+                    rowsObject[row.surveyname].give = row.account;
+                    rowsObject[row.surveyname]._origGive = row.account;
+                } else if (row.hostattendmutual === 'Attended') {
+                    // populate the object that will create the "gives"
+                    gets[row.surveyname][row.account] = true;
+                } else if (row.hostattendmutual === 'Mutual') {
+                    rowsObject[row.surveyname].give = 'Cal. Ed. Partners';
+                }
+
+                // new fields
+                rowsObject[row.surveyname].essentialQuestions = row.essentialquestions;
+            } else if (row.hostattendmutual === 'Attended') {
+                gets[row.surveyname][row.account] = true;
+            } else if (row.hostattendmutual === 'Hosted') {
+                rowsObject[row.surveyname].give = row.account;
+                rowsObject[row.surveyname]._origGive = row.account;
+            }
+        });
+
+        // each participant is added individually, in with key names ranging from "get" to "get_1" to "get_n"
+        $.each(gets, function(eventName, eventGets) {
+            var keyName = 'get';
+            var x = 0;
+            $.each(eventGets, function(getName, bool) {
+                if (x > 0) {
+                    keyName = 'get_' + x;
+                }
+                rowsObject[eventName][keyName] = getName;
+                x++;
+            });
+        });
+
+        // add rowNumbers (index position)
+        var x = 1;
+        $.each(rowsObject, function(name, row) {
+          row.rowNumbers = x;
+          rows.push(row);
+          x++;
+        });
+
+        // trim names in rows for possible whitespacing errors
+        $.each(rows, function(i, row) {
           row.give = $.trim(row.give);
-          if ($.trim(row.strand) === 'Expert') {
-            row.give = 'Expert';
-          }
           row.get = $.trim(row.get);
-          var x = 2;
+          var x = 1;
           while (row['get_'+x]) {
             row['get_'+x] = $.trim(row['get_'+x]);
             x++;
           }
         });
 
-        rows = data;
+        // rows = data;
         createMap();
       },
-      simpleSheet: true,
       debug:true
-    } );
+    });
   };
 
   var checkData = function() {
     if (rows[0]) { return; }
     fetchData();
-    setTimeout(checkData, 3500);
+    // setTimeout(checkData, 3500); // TODO refactor back in
   };
 
   checkData();
